@@ -58,59 +58,51 @@ Puppet::Type.newtype(:node_group) do
         # pinned nodes are in the form ['=', 'name', <hostname>]
         apinned = []
         a_without_pinned = a
-        if (a[0] == 'or')
-          apinned = a.select {|item| (item[0] == '=') && (item[1] == 'name')}
+        if a[0] == 'or'
+          apinned = a.select { |item| (item[0] == '=') && (item[1] == 'name') }
           a_without_pinned = a.select { |item| (item[0] != '=') || (item[1] != 'name') }
         end
         bpinned = []
         b_without_pinned = b
-        
-        if (b[0] == 'or')
-          bpinned = b.select {|item| (item[0] == '=') && (item[1] == 'name')}
+
+        if b[0] == 'or'
+          bpinned = b.select { |item| (item[0] == '=') && (item[1] == 'name') }
           b_without_pinned = b.select { |item| (item[0] != '=') || (item[1] != 'name') }
         end
 
-        if (((a[0] == 'and') || (a[0] == 'or')) && a[0] == b[0])
-          # if a and b start with the same 'and' or 'or' clause, we can just combine them
-          if (a[0] == 'or')
-            merged = (['or'] + a_without_pinned.drop(1) + b_without_pinned.drop(1) + apinned + bpinned).uniq
-          else 
-            # must both be 'and' clauses
-            if (apinned.length > 0 || bpinned.length > 0)
-              # we have pinned nodes
-              merged = (['or'] + [a_without_pinned + b_without_pinned.drop(1)] + apinned + bpinned).uniq
-            else 
-              # no pinned nodes and one top level 'and' clause, just combine them.
-              merged = a_without_pinned = b_without_pinned.drop(1)
-            end
-          end
-        else 
-          # first clause of a and b aren't equal 
-          # a first clause is one of and/or/not/operator
-          # b first clause is one of and/or/not/operator
-          # if a starts with `and` and b starts with `or`, create a top level `or` clause, nest a under it and append the rest of b
-          if (a_without_pinned[0] == 'and' && b_without_pinned[0] == 'or')
-            # special case of a only having one subclause
-            if (a_without_pinned.length == 2)
-              merged = (['or'] + a_without_pinned[1] + b_without_pinned.drop(1) + apinned + bpinned)
-            else 
-              merged = (['or'] + [a_without_pinned] + b_without_pinned.drop(1) + apinned + bpinned)
-            end
-          else
-            if (a_without_pinned[0] == 'or')
-              merged = (a_without_pinned + [b_without_pinned] + apinned + bpinned).uniq
-            else 
-              # if b starts with 'or', we want to be sure to drop that.
-              if (b_without_pinned[0] == 'or')
-                merged = (['or'] + [a_without_pinned] + b_without_pinned.drop(1) + apinned + bpinned)
-              else 
-                merged = (['or'] + [a_without_pinned] + [b_without_pinned] + apinned + bpinned)
-              end
-            end
-          end
-        end
+        merged = if ((a[0] == 'and') || (a[0] == 'or')) && a[0] == b[0]
+                   # if a and b start with the same 'and' or 'or' clause, we can just combine them
+                   if a[0] == 'or'
+                     (['or'] + a_without_pinned.drop(1) + b_without_pinned.drop(1) + apinned + bpinned).uniq
+                   elsif !apinned.empty? || !bpinned.empty?
+                     # must both be 'and' clauses
+                     (['or'] + [a_without_pinned + b_without_pinned.drop(1)] + apinned + bpinned).uniq
+                   # we have pinned nodes
+                   else
+                     # no pinned nodes and one top level 'and' clause, just combine them.
+                     a_without_pinned = b_without_pinned.drop(1)
+                   end
+                 elsif a_without_pinned[0] == 'and' && b_without_pinned[0] == 'or'
+                   # first clause of a and b aren't equal
+                   # a first clause is one of and/or/not/operator
+                   # b first clause is one of and/or/not/operator
+                   # if a starts with `and` and b starts with `or`, create a top level `or` clause, nest a under it and append the rest of b
+                   if a_without_pinned.length == 2
+                     (['or'] + a_without_pinned[1] + b_without_pinned.drop(1) + apinned + bpinned)
+                   else
+                     (['or'] + [a_without_pinned] + b_without_pinned.drop(1) + apinned + bpinned)
+                   end
+                 # special case of a only having one subclause
+                 elsif a_without_pinned[0] == 'or'
+                   (a_without_pinned + [b_without_pinned] + apinned + bpinned).uniq
+                 elsif b_without_pinned[0] == 'or'
+                   # if b starts with 'or', we want to be sure to drop that.
+                   (['or'] + [a_without_pinned] + b_without_pinned.drop(1) + apinned + bpinned)
+                 else
+                   (['or'] + [a_without_pinned] + [b_without_pinned] + apinned + bpinned)
+                 end
         # ensure rules are unique at the top level and remove any empty rule sets
-        merged.uniq.select { |item| (item != ['or'] && item != ['and'] )}
+        merged.uniq.select { |item| (item != ['or'] && item != ['and']) }
       end
     end
 
